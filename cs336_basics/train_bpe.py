@@ -2,6 +2,8 @@
 
 import regex as re
 from collections import Counter, defaultdict
+import gc
+import resource
 
 def train_bpe(
   input_path: str,
@@ -26,6 +28,8 @@ def train_bpe(
   # Pre-pre tokenization: split by special tokens.
   sptk_regex = "|".join(map(re.escape, special_tokens))
   corpus = re.split(sptk_regex, raw_corpus)
+  del raw_corpus
+  gc.collect()
 
   # Pre-tokenization: 
   PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
@@ -36,7 +40,11 @@ def train_bpe(
     for match in re.finditer(pat_rgx, word):
       pre_tokens.append(match.group(0).encode("utf-8"))      
 
+  del corpus
+  gc.collect()
   pre_token_counts = Counter(pre_tokens)
+  del pre_tokens
+  gc.collect()
 
   # Training
   vocab : dict[int, bytes] = { i: bytes([i]) for i in range(256) }
@@ -44,7 +52,10 @@ def train_bpe(
   counts : dict[tuple[bytes, ...], int] = {
     tuple( bytes([b]) for b in pre_token ) : count for pre_token, count in pre_token_counts.items()
   }
-  
+  del pre_token_counts
+  gc.collect()
+
+
   for _ in range(merge_rounds):
 
     ## Compute the most common pair.
@@ -81,6 +92,8 @@ def train_bpe(
   vocab_length_after_merges = len(vocab)
   for i in range(len(special_tokens)):
     vocab[vocab_length_after_merges + i] = special_tokens[i].encode("utf-8")
+
+  print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
   return vocab, merges 
 
