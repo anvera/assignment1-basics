@@ -11,7 +11,7 @@ training_file = "./data/TinyStoriesV2-GPT4-train.txt"
 vocab, merges = train_bpe(
   training_file,
   10000,
-  ["<|endoftest|>"]
+  ["<|endoftext|>"]
 )
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
