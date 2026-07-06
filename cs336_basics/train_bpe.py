@@ -3,7 +3,6 @@
 import regex as re
 from collections import Counter, defaultdict
 import gc
-import resource
 
 def train_bpe(
   input_path: str,
@@ -92,8 +91,6 @@ def train_bpe(
   vocab_length_after_merges = len(vocab)
   for i in range(len(special_tokens)):
     vocab[vocab_length_after_merges + i] = special_tokens[i].encode("utf-8")
-
-  print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
   return vocab, merges 
 
