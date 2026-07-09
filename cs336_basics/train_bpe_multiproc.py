@@ -3,8 +3,28 @@
 import regex as re
 from collections import Counter, defaultdict
 import gc
-from cs336_basics import pretokenization_example.find_chunk_boundaries
+from cs336_basics.pretokenization_example import find_chunk_boundaries
 from multiprocessing import Pool
+from functools import partial
+
+
+def pretokenization_and_counting(endpoints: tuple[int], input_path: str, special_tokens: list[str]):
+
+  begin, end = endpoints[0], endpoints[1]
+
+  with open(input_path, "rb") as f:
+    f.seek(begin)
+    raw_corpus = f.read(end-begin).decode("utf-8", errors="ignore")
+
+  # Pre-pre tokenization: split by special tokens.
+  sptk_regex = "|".join(map(re.escape, special_tokens))
+  corpus = re.split(sptk_regex, raw_corpus)
+
+  # Pre-tokenization: 
+  PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+  pat_rgx = re.compile(PAT)
+  return Counter( match.group(0).encode("utf-8") for word in corpus for match in re.finditer(pat_rgx, word) )
+
 
 def train_bpe(
   input_path: str,
@@ -21,40 +41,20 @@ def train_bpe(
 
   merge_rounds = vocab_size - len(special_tokens) - 256
   assert merge_rounds >= 0, "Vocabulary size too small."
-
  
-  def pretokenization_and_counting(endpoints: tuple(int)):
-
-    begin, end = endpoints[0], endpoints[1]
-
-    with open(input_path, "rb" as f):
-      f.seek(begin)
-      raw_corpus = f.read(end-begin).decode("utf-8", errors="ignore")
-
-    # Pre-pre tokenization: split by special tokens.
-    sptk_regex = "|".join(map(re.escape, special_tokens))
-    corpus = re.split(sptk_regex, raw_corpus)
-
-    # Pre-tokenization: 
-    PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-    pat_rgx = re.compile(PAT)
-    pre_tokens = []
-
-    for word in corpus:
-      for match in re.finditer(pat_rgx, word):
-        pre_tokens.append(match.group(0).encode("utf-8"))      
-
-    return Counter(pre_tokens)
-
-
-  num_processes = 4 
+  num_processes = 8 
   with open(input_path, "rb") as f:
     boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
   
   process_inputs = list( (start, end) for start,end in zip(boundaries[:-1], boundaries[1:]))
 
   with Pool(processes=num_processes) as pool:
-    pre_token_counts = sum(pool.map(pretokenization_and_counting, process_inputs, 1))
+    pre_token_counter_list = pool.map(partial(pretokenization_and_counting, input_path=input_path, special_tokens=special_tokens), process_inputs, 1)
+
+  pre_token_counts = Counter()
+  for counter in pre_token_counter_list:
+    pre_token_counts += counter
+
 
   # Training
   vocab : dict[int, bytes] = { i: bytes([i]) for i in range(256) }

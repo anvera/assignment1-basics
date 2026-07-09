@@ -33,16 +33,8 @@ def train_bpe(
   # Pre-tokenization: 
   PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
   pat_rgx = re.compile(PAT)
-  pre_tokens = []
-
-  for word in corpus:
-    for match in re.finditer(pat_rgx, word):
-      pre_tokens.append(match.group(0).encode("utf-8"))      
-
+  pre_token_counts = Counter( match.group(0).encode("utf-8") for word in corpus for match in re.finditer(pat_rgx, word) )
   del corpus
-  gc.collect()
-  pre_token_counts = Counter(pre_tokens)
-  del pre_tokens
   gc.collect()
 
   # Training
