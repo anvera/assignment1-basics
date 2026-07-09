@@ -8,15 +8,14 @@ import os
 from datetime import datetime
 import sys
 
-if __name__ == '__main__':
+def train_bpe_on_corpus(
+  special_tokens: list[str],
+  training_file: str,
+  vocabulary_length: int,
+  multiproc: bool,
+  num_processes: int
+  ):
 
-  assert len(sys.argv) >= 4
-
-  special_tokens = ["<|endoftext|>"]
-  training_file = sys.argv[1]
-  vocabulary_length = int(sys.argv[2])
-  multiproc = True if sys.argv[3].lower() == 'true' else False
-  
   if multiproc:
     assert len(sys.argv) == 5
     num_processes = int(sys.argv[4])
@@ -45,4 +44,17 @@ if __name__ == '__main__':
   with open(filename_merges, "wb") as f:
     pickle.dump(merges, f)
     print(f"Saved file {filename_merges}")
+ 
 
+
+if __name__ == '__main__':
+
+  assert len(sys.argv) >= 4
+
+  special_tokens = ["<|endoftext|>"]
+  training_file = sys.argv[1]
+  vocabulary_length = int(sys.argv[2])
+  multiproc = True if sys.argv[3].lower() == 'true' else False
+  num_processes = int(sys.argv[4]) if multiproc else 0
+  
+  train_bpe_on_corpus(special_tokens, training_file, vocabulary_length, multiproc, num_processes) 
