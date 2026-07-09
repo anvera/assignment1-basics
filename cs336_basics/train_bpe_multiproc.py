@@ -26,10 +26,11 @@ def pretokenization_and_counting(endpoints: tuple[int], input_path: str, special
   return Counter( match.group(0).encode("utf-8") for word in corpus for match in re.finditer(pat_rgx, word) )
 
 
-def train_bpe(
+def train_bpe_multiproc(
   input_path: str,
   vocab_size: int,
-  special_tokens: list[str]
+  special_tokens: list[str],
+  num_processes: int
 ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
   """Trains a byte-pair encoding tokenizer on the
      file at the input path, with maximum given
@@ -41,8 +42,8 @@ def train_bpe(
 
   merge_rounds = vocab_size - len(special_tokens) - 256
   assert merge_rounds >= 0, "Vocabulary size too small."
- 
-  num_processes = 8 
+  assert num_processes >= 1
+
   with open(input_path, "rb") as f:
     boundaries = find_chunk_boundaries(f, num_processes, b"<|endoftext|>")
   
