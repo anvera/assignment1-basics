@@ -17,8 +17,6 @@ def train_bpe_on_corpus(
   ):
 
   if multiproc:
-    assert len(sys.argv) == 5
-    num_processes = int(sys.argv[4])
     vocab, merges = train_bpe_multiproc(
       training_file,
       vocabulary_length,
