@@ -4,6 +4,30 @@ import regex as re
 from collections import Counter, defaultdict
 import gc
 
+def read_and_split_raw_corpus(
+  input_path: str,
+  special_tokens: list[str]
+) -> list[str]:
+
+  with open(input_path) as f:
+    raw_corpus = f.read()
+
+  sptk_regex = "|".join(map(re.escape, special_tokens))
+  corpus = re.split(sptk_regex, raw_corpus)
+  del raw_corpus
+  gc.collect()
+  return corpus
+
+def compute_pre_token_counts(
+  corpus: list[str]
+) -> dict[bytes,int]:
+
+  PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+  pat_rgx = re.compile(PAT)
+  pre_token_counts = Counter( match.group(0).encode("utf-8") for word in corpus for match in re.finditer(pat_rgx, word) )
+  return pre_token_counts
+
+
 def train_bpe(
   input_path: str,
   vocab_size: int,
@@ -20,26 +44,18 @@ def train_bpe(
   merge_rounds = vocab_size - len(special_tokens) - 256
   assert merge_rounds >= 0, "Vocabulary size too small."
 
-  # Zeroth pass: read the input bytes into a working list.
-  with open(input_path) as f:
-    raw_corpus = f.read()
-  
-  # Pre-pre tokenization: split by special tokens.
-  sptk_regex = "|".join(map(re.escape, special_tokens))
-  corpus = re.split(sptk_regex, raw_corpus)
-  del raw_corpus
-  gc.collect()
+  corpus : list[str] = read_and_split_raw_corpus(input_path, special_tokens)
+  pre_token_counts : dict[bytes,int] = compute_pre_token_counts(corpus)
 
-  # Pre-tokenization: 
-  PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
-  pat_rgx = re.compile(PAT)
-  pre_token_counts = Counter( match.group(0).encode("utf-8") for word in corpus for match in re.finditer(pat_rgx, word) )
   del corpus
   gc.collect()
 
-  # Training
+  # Actual training
+  ## Output placeholders
   vocab : dict[int, bytes] = { i: bytes([i]) for i in range(256) }
   merges: list[tuple[bytes, bytes]] = []
+
+  ## Facilities for implementing the merging loop.
   counts : dict[tuple[bytes, ...], int] = {
     tuple( bytes([b]) for b in pre_token ) : count for pre_token, count in pre_token_counts.items()
   }
