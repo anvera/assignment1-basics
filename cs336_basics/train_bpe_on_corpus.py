@@ -47,7 +47,7 @@ def train_bpe_on_corpus(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-        description="Trains BPE tokenizer on a given corpus with default special tokens."
+        description="Trains BPE tokenizer on a given corpus with '<|endoftext|>' as the only special token."
     )
     special_tokens = ["<|endoftext|>"]
     parser.add_argument("corpus_filename")
@@ -56,7 +56,7 @@ if __name__ == "__main__":
         "--vocabulary_length",
         type=int,
         required=True,
-        help="The vocabulary length, including the 256 basic bytes.",
+        help="The vocabulary length, including the 256 basic bytes and the special token.",
     )
     parser.add_argument(
         "-f",
