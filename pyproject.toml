@@ -47,6 +47,7 @@ line-length = 120
 
 [dependency-groups]
 dev = [
+    "black>=26.5.1",
     "py-spy>=0.4.2",
 ]
 
