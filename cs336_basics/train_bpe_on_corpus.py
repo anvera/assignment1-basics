@@ -3,10 +3,10 @@
 from cs336_basics.train_bpe_multiproc import train_bpe_multiproc
 from cs336_basics.train_bpe import train_bpe, fast_train_bpe
 
-import pickle
 import os
 from datetime import datetime
 import argparse
+import json
 
 
 def train_bpe_on_corpus(
@@ -31,16 +31,21 @@ def train_bpe_on_corpus(
             vocab, merges = train_bpe(training_file, vocabulary_length, special_tokens)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename_vocab = os.path.join("/tmp", f"vocab_{timestamp}.pkl")
-    filename_merges = os.path.join("/tmp", f"merges_{timestamp}.pkl")
+    filename_vocab = os.path.join("/tmp", f"vocab_{timestamp}.json")
+    filename_merges = os.path.join("/tmp", f"merges_{timestamp}.json")
+
+    # The following conversions deal with the inability to
+    # serialize 'bytes' objects in JSON.
+    serializable_vocab = { k:str(v) for k,v in vocab.items() }
+    serializable_merges = list(map(str,merges))
 
     # Save
-    with open(filename_vocab, "wb") as f:
-        pickle.dump(vocab, f)
+    with open(filename_vocab, "w") as f:
+        json.dump(serializable_vocab, f, indent=2, sort_keys=True)
         print(f"Saved file {filename_vocab}")
 
-    with open(filename_merges, "wb") as f:
-        pickle.dump(merges, f)
+    with open(filename_merges, "w") as f:
+        json.dump(serializable_merges, f, indent=2)
         print(f"Saved file {filename_merges}")
 
 

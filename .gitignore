@@ -170,3 +170,6 @@ tmp/
 
 # Validation files.
 validation/
+
+# Vim swap files
+*.swp
