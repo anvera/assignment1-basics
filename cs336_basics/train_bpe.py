@@ -145,8 +145,8 @@ def fast_train_with_pre_token_counts(
     total_occurrences_for_pair: dict[tuple[bytes, bytes], int] = defaultdict(int)
     ## TODO: remove the occurrences per word. We don't use it. We only need the list of words a pair appears on,
     ## not the exact positions because anyway we're iterating thorough it.
-    per_word_occurrences_for_pair: dict[tuple[bytes, bytes], dict[int, int]] = defaultdict(
-        lambda: defaultdict(int)
+    per_word_occurrences_for_pair: dict[tuple[bytes, bytes], dict[int, int]] = (
+        defaultdict(lambda: defaultdict(int))
     )
 
     for word_id, word in enumerate(words):
@@ -159,7 +159,6 @@ def fast_train_with_pre_token_counts(
             total_occurrences_for_pair[p] += occ * word_count[word_id]
             per_word_occurrences_for_pair[p][word_id] += occ
 
-
     ## 5. Heap used to efficiently compute the pairs with maximum lexicographic order among those with
     ## maximum occurrence. Note: Python only offers max-heap starting on 3.14. That's why we need a
     ## helper class to invert the default order and turn the min-heap into a max-heap.
@@ -167,11 +166,15 @@ def fast_train_with_pre_token_counts(
         def __init__(self, val):
             self.val = val
 
-        def __lt__(self, other):
-            self.val > other.val
+        def __lt__(self, other) -> bool:
+            return self.val > other.val
+
+        def __eq__(self, other) -> bool:
+            return self.val == other.val
 
     heap: list[tuple[int, bytes, bytes]] = [
-        OrderInverterWrapper((count, p)) for p, count in total_occurrences_for_pair.items()
+        OrderInverterWrapper((count, p))
+        for p, count in total_occurrences_for_pair.items()
     ]
     heapify(heap)
 
@@ -211,10 +214,7 @@ def fast_train_with_pre_token_counts(
             word = words[word_id]
             i = 0
             while i < len(word) - 1:
-                if (
-                    word[i] == selected_merge[0]
-                    and word[i + 1] == selected_merge[1]
-                ):
+                if word[i] == selected_merge[0] and word[i + 1] == selected_merge[1]:
                     # Merge.
                     ## Former previous and proximus pairs
                     prev = (word[i - 1], word[i]) if i > 0 else None
@@ -222,7 +222,10 @@ def fast_train_with_pre_token_counts(
                     ## Decrease occurrences of prev and prox pairs.
                     for old_pair in (prev, prox):
                         if old_pair is not None:
-                            assert total_occurrences_for_pair[old_pair] >= word_count[word_id]
+                            assert (
+                                total_occurrences_for_pair[old_pair]
+                                >= word_count[word_id]
+                            )
                             total_occurrences_for_pair[old_pair] -= word_count[word_id]
                             assert word_id in per_word_occurrences_for_pair[old_pair]
                             assert per_word_occurrences_for_pair[old_pair][word_id] >= 1
@@ -235,7 +238,7 @@ def fast_train_with_pre_token_counts(
                     word[i] = new_token
                     ## New pairs.
                     new_prev = (word[i - 1], word[i]) if i > 0 else None
-                    new_prox = (word[i], word[i+1]) if i < len(word) - 1 else None
+                    new_prox = (word[i], word[i + 1]) if i < len(word) - 1 else None
                     ## Increase occurrences of new_prev and new_prox
                     for new_pair in (new_prev, new_prox):
                         if new_pair is not None:
@@ -253,7 +256,10 @@ def fast_train_with_pre_token_counts(
 
         ## Heap update
         for new_pair in new_pairs:
-            heappush(heap, OrderInverterWrapper((total_occurrences_for_pair[new_pair], new_pair)))
+            heappush(
+                heap,
+                OrderInverterWrapper((total_occurrences_for_pair[new_pair], new_pair)),
+            )
 
     # Add special tokens to the vocabulary too.
     vocab_length_after_merges = len(vocab)
