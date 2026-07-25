@@ -221,7 +221,6 @@ def fast_train_with_pre_token_counts(
     ## 4. Mapping of pairs of bytes objects to, in turn, a mapping of word_ids which words contain the pair,
     ## to the number of occurrences of the pair in the word with such word_id.
     total_occurrences_for_pair: dict[tuple[bytes, bytes], int] = defaultdict(int)
-    ## TODO: remove the occurrences per word. We don't use it. We only need the list of words a pair appears on,
     ## not the exact positions because anyway we're iterating thorough it.
     per_word_occurrences_for_pair: dict[tuple[bytes, bytes], dict[int, int]] = (
         defaultdict(lambda: defaultdict(int))
@@ -288,7 +287,16 @@ def fast_train_with_pre_token_counts(
         ### counters are updated.
         new_pairs: set[tuple[bytes, bytes]] = set()
 
-        for word_id in per_word_occurrences_for_pair[selected_merge]:
+        for word_id, count_in_word in per_word_occurrences_for_pair[
+            selected_merge
+        ].items():
+            # This number may become zero after a merge.
+            # Ideally we would delete the key, but we
+            # can't because we would be modifying the
+            # collection we're iterating over.
+            if count_in_word == 0:
+                continue
+
             word = words[word_id]
             i = 0
             while i < len(word) - 1:
@@ -300,16 +308,9 @@ def fast_train_with_pre_token_counts(
                     ## Decrease occurrences of prev and prox pairs.
                     for old_pair in (prev, prox):
                         if old_pair is not None:
-                            assert (
-                                total_occurrences_for_pair[old_pair]
-                                >= word_count[word_id]
-                            )
                             total_occurrences_for_pair[old_pair] -= word_count[word_id]
-                            assert word_id in per_word_occurrences_for_pair[old_pair]
-                            assert per_word_occurrences_for_pair[old_pair][word_id] >= 1
                             per_word_occurrences_for_pair[old_pair][word_id] -= 1
                     ## Remove pair at (i,i+1) and replace it with the new token at i.
-                    ## TODO: use a dict instead of a list to avoid linear replacement.
                     total_occurrences_for_pair[selected_merge] -= word_count[word_id]
                     per_word_occurrences_for_pair[selected_merge][word_id] -= 1
                     del word[i + 1]
@@ -325,11 +326,7 @@ def fast_train_with_pre_token_counts(
                             per_word_occurrences_for_pair[new_pair][word_id] += 1
                 # Update i.
                 i += 1
-            assert per_word_occurrences_for_pair[selected_merge][word_id] == 0
         del per_word_occurrences_for_pair[selected_merge]
-        # This may fail to be zero in the expected case when
-        # occurrences of the selected_merge pair overlap.
-        assert total_occurrences_for_pair[selected_merge] >= 0
         del total_occurrences_for_pair[selected_merge]
 
         ## Heap update
