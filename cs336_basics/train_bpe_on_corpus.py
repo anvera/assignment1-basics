@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-from cs336_basics.train_bpe_multiproc import train_bpe_multiproc
-from cs336_basics.train_bpe import train_bpe, fast_train_bpe
+from cs336_basics.train_bpe import train_bpe_with_options
 
 import os
 from datetime import datetime
@@ -15,20 +14,17 @@ def train_bpe_on_corpus(
     vocabulary_length: int,
     multiproc: bool,
     num_processes: int,
-    fast: bool,
+    naive: bool,
 ):
 
-    if multiproc:
-        vocab, merges = train_bpe_multiproc(
-            training_file, vocabulary_length, special_tokens, num_processes
-        )
-    else:
-        if fast:
-            vocab, merges = fast_train_bpe(
-                training_file, vocabulary_length, special_tokens
-            )
-        else:
-            vocab, merges = train_bpe(training_file, vocabulary_length, special_tokens)
+    vocab, merges = train_bpe_with_options(
+        training_file,
+        vocabulary_length,
+        special_tokens,
+        naive,
+        multiproc,
+        num_processes,
+    )
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename_vocab = os.path.join("/tmp", f"vocab_{timestamp}.json")
@@ -36,8 +32,8 @@ def train_bpe_on_corpus(
 
     # The following conversions deal with the inability to
     # serialize 'bytes' objects in JSON.
-    serializable_vocab = { k:str(v) for k,v in vocab.items() }
-    serializable_merges = list(map(str,merges))
+    serializable_vocab = {k: str(v) for k, v in vocab.items()}
+    serializable_merges = list(map(str, merges))
 
     # Save
     with open(filename_vocab, "w") as f:
@@ -64,10 +60,10 @@ if __name__ == "__main__":
         help="The vocabulary length, including the 256 basic bytes and the special token.",
     )
     parser.add_argument(
-        "-f",
-        "--fast",
+        "-nv",
+        "--naive",
         action="store_true",
-        help="Enable use of the efficient version of training.",
+        help="Uses the naive and inefficient but more straightforward version of training.",
     )
     parser.add_argument(
         "-mp",
@@ -93,5 +89,5 @@ if __name__ == "__main__":
         args.vocabulary_length,
         args.multiproc,
         args.processors,
-        args.fast,
+        args.naive,
     )

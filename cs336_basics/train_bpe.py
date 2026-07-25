@@ -3,7 +3,102 @@
 import regex as re
 from collections import Counter, defaultdict
 import gc
+from cs336_basics.pretokenization_example import find_chunk_boundaries
+from multiprocessing import Pool
+from functools import partial
 from heapq import heapify, heappop, heappush
+
+
+def train_bpe_with_options(
+    input_path: str,
+    vocab_size: int,
+    special_tokens: list[str],
+    use_naive_algorithm: bool = False,
+    parallel_preprocessing: bool = False,
+    num_processes: int = 4,
+) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+
+    pre_token_counts = compute_pre_token_counts_with_options(
+        input_path, special_tokens, parallel_preprocessing, num_processes
+    )
+    train_function = (
+        train_with_pre_token_counts
+        if use_naive_algorithm
+        else fast_train_with_pre_token_counts
+    )
+
+    return train_function(pre_token_counts, vocab_size, special_tokens)
+
+
+def train_bpe(
+    input_path: str, vocab_size: int, special_tokens: list[str]
+) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
+
+    return train_bpe_with_options(
+        input_path, vocab_size, special_tokens, parallel_preprocessing=False
+    )
+
+
+def compute_pre_token_counts_with_options(
+    input_path: str,
+    special_tokens: list[str],
+    parallel: bool = False,
+    num_processes: int = 4,
+) -> dict[bytes, int]:
+
+    if parallel:
+        assert num_processes >= 1
+        end_of_text = "<|endoftext|>"
+        assert end_of_text in special_tokens
+
+        with open(input_path, "rb") as f:
+            boundaries = find_chunk_boundaries(
+                f, num_processes, end_of_text.encode("utf-8")
+            )
+
+        process_inputs = list(
+            (start, end) for start, end in zip(boundaries[:-1], boundaries[1:])
+        )
+
+        with Pool(processes=num_processes) as pool:
+            pre_token_counter_list = pool.map(
+                partial(
+                    compute_pre_token_counts_on_shard,
+                    input_path=input_path,
+                    special_tokens=special_tokens,
+                ),
+                process_inputs,
+                1,
+            )
+
+        pre_token_counts = Counter()
+        for counter in pre_token_counter_list:
+            pre_token_counts += counter
+    else:
+        with open(input_path) as f:
+            raw_corpus: str = f.read()
+
+        pre_token_counts: dict[bytes, int] = compute_pre_token_counts(
+            raw_corpus, special_tokens
+        )
+
+        del raw_corpus
+        gc.collect()
+
+    return pre_token_counts
+
+
+def compute_pre_token_counts_on_shard(
+    endpoints: tuple[int], input_path: str, special_tokens: list[str]
+) -> dict[bytes, int]:
+
+    begin, end = endpoints[0], endpoints[1]
+
+    with open(input_path, "rb") as f:
+        f.seek(begin)
+        raw_corpus = f.read(end - begin).decode("utf-8", errors="ignore")
+
+    return compute_pre_token_counts(raw_corpus, special_tokens)
 
 
 def compute_pre_token_counts(
@@ -84,23 +179,6 @@ def train_with_pre_token_counts(
         vocab[vocab_length_after_merges + i] = special_tokens[i].encode("utf-8")
 
     return vocab, merges
-
-
-def train_bpe(
-    input_path: str, vocab_size: int, special_tokens: list[str]
-) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
-
-    with open(input_path) as f:
-        raw_corpus: str = f.read()
-
-    pre_token_counts: dict[bytes, int] = compute_pre_token_counts(
-        raw_corpus, special_tokens
-    )
-
-    del raw_corpus
-    gc.collect()
-
-    return train_with_pre_token_counts(pre_token_counts, vocab_size, special_tokens)
 
 
 def fast_train_with_pre_token_counts(
@@ -267,22 +345,3 @@ def fast_train_with_pre_token_counts(
         vocab[vocab_length_after_merges + i] = special_tokens[i].encode("utf-8")
 
     return vocab, merges
-
-
-def fast_train_bpe(
-    input_path: str, vocab_size: int, special_tokens: list[str]
-) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
-
-    with open(input_path) as f:
-        raw_corpus: str = f.read()
-
-    pre_token_counts: dict[bytes, int] = compute_pre_token_counts(
-        raw_corpus, special_tokens
-    )
-
-    del raw_corpus
-    gc.collect()
-
-    return fast_train_with_pre_token_counts(
-        pre_token_counts, vocab_size, special_tokens
-    )
