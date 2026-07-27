@@ -22,6 +22,18 @@ if __name__ == "__main__":
         default=4,
         help="Number of processors used when multiproc is enabled.",
     )
+    parser.add_argument(
+        "-ov",
+        "--output_vocab",
+        required=True,
+        help="Output file to put the serialized vocabulary on.",
+    )
+    parser.add_argument(
+        "-om",
+        "--output_merges",
+        required=True,
+        help="Output file to put the serialized merges on.",
+    )
     args = parser.parse_args()
     train_bpe_on_corpus(
         ["<|endoftext|>"],
@@ -30,4 +42,6 @@ if __name__ == "__main__":
         args.multiproc,
         args.processors,
         args.naive,
+        args.output_vocab,
+        args.output_merges,
     )

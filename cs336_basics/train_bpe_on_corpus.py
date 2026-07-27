@@ -15,6 +15,8 @@ def train_bpe_on_corpus(
     multiproc: bool,
     num_processes: int,
     naive: bool,
+    filename_vocab: str,
+    filename_merges: str,
 ):
 
     vocab, merges = train_bpe_with_options(
@@ -25,10 +27,6 @@ def train_bpe_on_corpus(
         multiproc,
         num_processes,
     )
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename_vocab = os.path.join("/tmp", f"vocab_{timestamp}.json")
-    filename_merges = os.path.join("/tmp", f"merges_{timestamp}.json")
 
     # The following conversions deal with the inability to
     # serialize 'bytes' objects in JSON.
@@ -78,7 +76,18 @@ if __name__ == "__main__":
         default=4,
         help="Number of processors used when multiproc is enabled.",
     )
-
+    parser.add_argument(
+        "-ov",
+        "--output_vocab",
+        required=True,
+        help="Output file to put the serialized vocabulary on.",
+    )
+    parser.add_argument(
+        "-om",
+        "--output_merges",
+        required=True,
+        help="Output file to put the serialized merges on.",
+    )
     args = parser.parse_args()
 
     print(args)
@@ -90,4 +99,6 @@ if __name__ == "__main__":
         args.multiproc,
         args.processors,
         args.naive,
+        args.output_vocab,
+        args.output_merges,
     )
