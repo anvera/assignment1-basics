@@ -173,3 +173,6 @@ validation/
 
 # Vim swap files
 *.swp
+
+# Credentials
+/credentials
