@@ -45,8 +45,11 @@ class Tokenizer:
         self.vocab_inv = {v: k for k, v in vocab.items()}
         assert len(self.vocab) == len(self.vocab_inv)
         self.merges = merges
+        self.special_tokens = (
+            tuple() if special_tokens is None else tuple(special_tokens)
+        )
         self.sptk_regex = (
-            re.compile("|".join(map(re.escape, special_tokens)))
+            re.compile(r"(" + "|".join(map(re.escape, special_tokens)) + r")")
             if special_tokens
             else None
         )
@@ -54,18 +57,21 @@ class Tokenizer:
     def corpus_section_iterable(self, text: str) -> Iterator[str]:
 
         if self.sptk_regex is None:
-            return iter((text,))
+            yield text
+            return
         else:
             remainder = text
             while len(remainder) > 0:
                 splits = self.sptk_regex.split(remainder, maxsplit=1)
+                assert len(splits) in (1, 3)
                 if len(splits) == 1:
                     if len(splits[0]) > 0:
                         yield splits[0]
                     return
                 else:
-                    remainder = splits[1]
+                    remainder = splits[2]
                     yield splits[0]
+                    yield splits[1]
         return
 
     def pre_token_iterable(self, text: str) -> Iterator[bytes]:
@@ -74,6 +80,9 @@ class Tokenizer:
         and encoded in UTF-8 before yielding them."""
 
         for section in self.corpus_section_iterable(text):
+            if section in self.special_tokens:
+                yield section.encode("utf-8")
+                continue
             for match in self.PTK_REGEX.finditer(section):
                 yield match.group(0).encode("utf-8")
         return
@@ -81,18 +90,22 @@ class Tokenizer:
     def encode(self, text: str) -> list[int]:
         """Encode an input text into a sequence of token IDs."""
 
-        return list(self.encode_iterable(iter([text])))
+        result = list(self.encode_iterable(iter([text])))
+        return result
 
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
         """Given an iterable of
         strings (e.g., a Python file handle), return a generator that lazily yields token IDs. This is
         required for memory-efficient tokenization of large files that we cannot directly load into
         memory."""
-
         for text in iterable:
-            ptk_gen = self.pre_token_iterable(text)
-
-            for word_bytes in ptk_gen:
+            for word_bytes in self.pre_token_iterable(text):
+                # If the whole word is already a token,
+                # encode it immediately and continue.
+                # This is the special tokens case at least.
+                if word_bytes in self.vocab_inv:
+                    yield self.vocab_inv[word_bytes]
+                    continue
                 wip = [bytes([b]) for b in word_bytes]
                 for l, r in self.merges:
                     i = 0
@@ -102,13 +115,12 @@ class Tokenizer:
                             del wip[i + 1]
                         i += 1
                 for token in wip:
+                    assert token in self.vocab_inv
                     yield self.vocab_inv[token]
+
         return
 
     def decode(self, ids: list[int]) -> str:
         """Decode a sequence of token IDs into text."""
 
-        def dec_utf8(b: bytes) -> str:
-            return b.decode("utf-8", errors="replace")
-
-        return "".join(map(dec_utf8, map(self.vocab.get, ids)))
+        return b"".join(map(self.vocab.get, ids)).decode("utf-8", errors="replace")
