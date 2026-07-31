@@ -58,7 +58,7 @@ class Tokenizer:
         else:
             remainder = text
             while len(remainder) > 0:
-                splits = self.sptk_regex.split(text, maxsplit=1)
+                splits = self.sptk_regex.split(remainder, maxsplit=1)
                 if len(splits) == 1:
                     if len(splits[0]) > 0:
                         yield splits[0]
