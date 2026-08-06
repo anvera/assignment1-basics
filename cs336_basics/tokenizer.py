@@ -25,7 +25,7 @@ class Tokenizer:
         """
         with open(vocab_filepath) as vf:
             d = json.loads(vf.read())
-            vocab = {int(k): literal_eval(d[k])}
+            vocab = {int(k): literal_eval(v) for k, v in d.items()}
 
         with open(merges_filepath) as mf:
             l = json.loads(mf.read())
@@ -46,7 +46,9 @@ class Tokenizer:
         assert len(self.vocab) == len(self.vocab_inv)
         self.merges = merges
         self.special_tokens = (
-            tuple() if special_tokens is None else tuple(sorted(special_tokens, key=lambda sp: (-len(sp), sp)))
+            tuple()
+            if special_tokens is None
+            else tuple(sorted(special_tokens, key=lambda sp: (-len(sp), sp)))
         )
         self.sptk_regex = (
             re.compile(r"(" + "|".join(map(re.escape, self.special_tokens)) + r")")

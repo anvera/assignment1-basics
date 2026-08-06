@@ -3,6 +3,10 @@ import regex as re
 import json
 import argparse
 import os
+import numpy as np
+import time
+
+from cs336_basics.tokenizer import Tokenizer
 
 
 def document_boundaries(input_path: str, separator: str) -> list[int]:
@@ -82,6 +86,40 @@ def handle_document_sampling(
             f.write(document)
 
 
+def handle_tokenize(
+    vocab_file: str, merges_file: str, documents_file: str, output_file: str
+):
+
+    tokenizer = Tokenizer.from_files(
+        vocab_file, merges_file, special_tokens=["<|endoftext|>"]
+    )
+
+    # TODO: do this without reading the file all at once,
+    # so that we can work with bigger files. You can use generators/iterators.
+
+    start_time = time.perf_counter_ns()
+    with open(documents_file, "rb") as f:
+        docs_bytes = f.read()
+        total_bytes = len(docs_bytes)
+        tokens = tokenizer.encode(docs_bytes.decode("utf-8"))
+        total_tokens = len(tokens)
+
+    result = np.array(tokens, dtype=np.uint16)
+    with open(output_file, "wb") as out:
+        out.write(result.tobytes())
+    total_time_sec = (time.perf_counter_ns() - start_time) / float(10**9)
+
+    combined_throughput = total_bytes / total_time_sec
+    compression_ratio = total_bytes / total_tokens
+
+    print(f"Total input bytes: {total_bytes}")
+    print(f"Total tokens: {total_tokens}")
+    print(f"Total time in seconds: {total_time_sec:.3f}")
+
+    print(f"Compression ratio: {total_bytes/total_tokens:.2f}")
+    print(f"End-to-end throughput (bytes/sec): {combined_throughput:,.0f}")
+
+
 def main():
 
     parser = argparse.ArgumentParser(description="Tokenizer Experiments app.")
@@ -122,6 +160,16 @@ def main():
     tokenize_parser = subparsers.add_parser(
         "tokenize", help="Tokenizes a text with a given tokenizer"
     )
+    tokenize_parser.add_argument(
+        "vocab_file", help="Tokenizer vocabulary definition file"
+    )
+    tokenize_parser.add_argument("merges_file", help="Tokenizer merge sequence file")
+    tokenize_parser.add_argument(
+        "documents_file", help="The file containing the text to tokenize"
+    )
+    tokenize_parser.add_argument(
+        "output_file", help="Output where to serialize the tokenized documents"
+    )
 
     args = parser.parse_args()
 
@@ -132,6 +180,10 @@ def main():
             handle_document_sampling(
                 args.corpus, args.output_filename, args.number, args.seed
             )
+    elif args.command == "tokenize":
+        handle_tokenize(
+            args.vocab_file, args.merges_file, args.documents_file, args.output_file
+        )
     else:
         raise NotImplementedError
 
