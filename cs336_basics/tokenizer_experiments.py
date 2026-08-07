@@ -5,6 +5,7 @@ import argparse
 import os
 import numpy as np
 import time
+from typing import List, Iterable
 
 from cs336_basics.tokenizer import Tokenizer
 
@@ -85,29 +86,42 @@ def handle_document_sampling(
         for document in sample:
             f.write(document)
 
+def documents_iter(documents_file: str, separator: str) -> Iterable[str]:
+
+    with open(documents_file, 'r') as f:
+        BLOCK_SIZE = 4096
+        accumulated = ""
+        while (block := f.read(BLOCK_SIZE)) != "":
+            while separator in block:
+                end_idx = block.index(separator) + len(separator)
+                yield accumulated + block[:end_idx]
+                accumulated = ""
+                block = block[end_idx:]
+            accumulated += block
+        if accumulated != "":
+            yield accumulated
+    return
+
 
 def handle_tokenize(
     vocab_file: str, merges_file: str, documents_file: str, output_file: str
 ):
 
+    endoftext = "<|endoftext|>"
+
     tokenizer = Tokenizer.from_files(
-        vocab_file, merges_file, special_tokens=["<|endoftext|>"]
+        vocab_file, merges_file, special_tokens=[endoftext]
     )
 
-    # TODO: do this without reading the file all at once,
-    # so that we can work with bigger files. You can use generators/iterators.
-
     start_time = time.perf_counter_ns()
-    with open(documents_file, "rb") as f:
-        docs_bytes = f.read()
-        total_bytes = len(docs_bytes)
-        tokens = tokenizer.encode(docs_bytes.decode("utf-8"))
-        total_tokens = len(tokens)
-
-    result = np.array(tokens, dtype=np.uint16)
+    docs_iter = documents_iter(documents_file, separator = endoftext)
+    tokens_iter = tokenizer.encode_iterable(docs_iter)
+    result = np.fromiter(tokens_iter, dtype=np.uint16)
+    total_tokens = len(result)
     with open(output_file, "wb") as out:
         out.write(result.tobytes())
     total_time_sec = (time.perf_counter_ns() - start_time) / float(10**9)
+    total_bytes = os.path.getsize(documents_file)
 
     combined_throughput = total_bytes / total_time_sec
     compression_ratio = total_bytes / total_tokens
@@ -116,7 +130,7 @@ def handle_tokenize(
     print(f"Total tokens: {total_tokens}")
     print(f"Total time in seconds: {total_time_sec:.3f}")
 
-    print(f"Compression ratio: {total_bytes/total_tokens:.2f}")
+    print(f"Compression ratio: {compression_ratio:.2f}")
     print(f"End-to-end throughput (bytes/sec): {combined_throughput:,.0f}")
 
 
