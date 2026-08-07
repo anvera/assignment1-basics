@@ -95,11 +95,15 @@ class Tokenizer:
         result = list(self.encode_iterable(iter([text])))
         return result
 
-    def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
+    def encode_iterable(self, iterable: Iterable[str], cached: bool = True) -> Iterator[int]:
         """Given an iterable of
         strings (e.g., a Python file handle), return a generator that lazily yields token IDs. This is
         required for memory-efficient tokenization of large files that we cannot directly load into
         memory."""
+
+        if cached:
+            cache : dict[bytes, list[int]] = {}
+
         for text in iterable:
             for word_bytes in self.pre_token_iterable(text):
                 # If the whole word is already a token,
@@ -108,6 +112,10 @@ class Tokenizer:
                 if word_bytes in self.vocab_inv:
                     yield self.vocab_inv[word_bytes]
                     continue
+                elif cached and word_bytes in cache:
+                    yield from cache[word_bytes]
+                    continue
+
                 wip = [bytes([b]) for b in word_bytes]
                 for l, r in self.merges:
                     i = 0
@@ -116,9 +124,15 @@ class Tokenizer:
                             wip[i] = l + r
                             del wip[i + 1]
                         i += 1
+                if cached:
+                    token_ids_to_cache = []
                 for token in wip:
                     assert token in self.vocab_inv
+                    if cached:
+                        token_ids_to_cache.append(self.vocab_inv[token])
                     yield self.vocab_inv[token]
+                if cached:
+                    cache[word_bytes] = token_ids_to_cache
 
         return
 
